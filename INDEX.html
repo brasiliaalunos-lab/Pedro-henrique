@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Retro Arcade Soccer</title>
+    <!-- Tailwind CSS para estilização da interface -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter e Press Start 2P para toque arcade -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+            background-color: #0f172a;
+            color: #ffffff;
+            overflow: hidden;
+            user-select: none;
+        }
+        .arcade-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+        /* Efeito de brilho e animação para gols */
+        @keyframes goalPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .goal-alert {
+            animation: goalPulse 0.5s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between items-center relative overflow-hidden">
+
+    <!-- Menu Principal -->
+    <div id="main-menu" class="absolute inset-0 bg-slate-950/90 z-50 flex flex-col justify-center items-center p-6 text-center backdrop-blur-md">
+        <div class="mb-8">
+            <h1 class="arcade-font text-3xl md:text-5xl text-yellow-400 mb-4 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">SUPER ARCADE SOCCER</h1>
+            <p class="text-slate-400 text-sm md:text-base max-w-md mx-auto">Mostre suas habilidades no gramado! Marque mais gols que o adversário antes que o tempo acabe.</p>
+        </div>
+
+        <div class="bg-slate-900 border-2 border-slate-700 p-6 rounded-2xl shadow-2xl mb-8 w-full max-w-sm">
+            <h2 class="text-lg font-bold mb-4 text-emerald-400">ESCOLHA O MODO</h2>
+            <div class="space-y-3">
+                <button onclick="startGame('easy')" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl transition shadow-lg text-white border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1">FÁCIL (Contra IA)</button>
+                <button onclick="startGame('normal')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl transition shadow-lg text-white border-b-4 border-blue-800 active:border-b-0 active:translate-y-1">NORMAL (Desafiador)</button>
+                <button onclick="startGame('hard')" class="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold rounded-xl transition shadow-lg text-white border-b-4 border-purple-800 active:border-b-0 active:translate-y-1"> DIFÍCIL (Lenda)</button>
+            </div>
+        </div>
+
+        <div class="text-xs text-slate-500 space-y-1">
+            <p>⌨️ Controles PC: Setas / WASD para mover | ESPAÇO para Chutar</p>
+            <p>📱 Controles Mobile: Use o Joystick virtual na tela e o botão de Chute</p>
+        </div>
+    </div>
+
+    <!-- Tela de Game Over / Fim de Jogo -->
+    <div id="game-over-modal" class="absolute inset-0 bg-slate-950/90 z-50 hidden flex flex-col justify-center items-center p-6 text-center backdrop-blur-md">
+        <div class="bg-slate-900 border-2 border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full">
+            <h2 id="game-over-title" class="arcade-font text-2xl md:text-3xl text-yellow-400 mb-4">FIM DE JOGO</h2>
+            <p id="game-over-msg" class="text-slate-300 text-lg mb-6">Placar final: 0 x 0</p>
+            <button onclick="returnToMenu()" class="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black rounded-xl transition shadow-lg border-b-4 border-yellow-700 active:border-b-0 active:translate-y-1 text-lg">JOGAR NOVAMENTE</button>
+        </div>
+    </div>
+
+    <!-- Alerta de GOL! -->
+    <div id="goal-banner" class="absolute inset-0 z-40 hidden flex justify-center items-center pointer-events-none">
+        <div class="goal-alert bg-yellow-400 text-slate-950 px-8 py-4 rounded-2xl arcade-font text-4xl md:text-6xl border-4 border-white shadow-[0_10px_25px_rgba(250,204,21,0.5)] transform -rotate-3">
+            GOOOOL!
+        </div>
+    </div>
+
+    <!-- Placar Superior -->
+    <header class="w-full max-w-4xl bg-slate-900/80 backdrop-blur border-b border-slate-800 p-3 px-6 flex justify-between items-center z-10 select-none shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="w-4 h-4 rounded-full bg-blue-500"></div>
+            <span class="font-bold text-sm md:text-lg text-blue-400">JOGADOR</span>
+            <span id="player-score" class="arcade-font text-xl md:text-2xl ml-2">0</span>
+        </div>
+
+        <div class="flex flex-col items-center">
+            <div id="match-timer" class="arcade-font text-sm md:text-xl text-yellow-400">01:30</div>
+            <span class="text-[10px] text-slate-400 tracking-wider uppercase">TEMPO</span>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <span id="ai-score" class="arcade-font text-xl md:text-2xl mr-2">0</span>
+            <span class="font-bold text-sm md:text-lg text-rose-400">RIVAL</span>
+            <div class="w-4 h-4 rounded-full bg-rose-500"></div>
+        </div>
+    </header>
+
+    <!-- Área do Campo (Canvas) -->
+    <main class="flex-1 w-full flex justify-center items-center p-2 md:p-4 overflow-hidden relative">
+        <canvas id="soccer-canvas" class="shadow-2xl rounded-xl border-4 border-slate-700 bg-emerald-700 max-w-full max-h-full"></canvas>
+    </main>
+
+    <!-- Controles Mobile / Touch (Aparecem em dispositivos móveis ou toque) -->
+    <footer id="touch-controls" class="w-full max-w-4xl p-4 flex justify-between items-center z-20 md:hidden bg-slate-900/80 backdrop-blur border-t border-slate-800">
+        <div id="joystick-base" class="relative w-28 h-28 bg-slate-800/80 rounded-full border-2 border-slate-600 flex justify-center items-center touch-none">
+            <div id="joystick-stick" class="absolute w-12 h-12 bg-slate-500 rounded-full shadow-md border border-slate-400 transition-transform duration-75"></div>
+        </div>
+        <div class="flex space-x-4">
+            <button id="btn-kick" class="w-20 h-20 bg-yellow-500 active:bg-yellow-400 rounded-full font-bold text-slate-950 flex justify-center items-center shadow-lg border-b-4 border-yellow-700 active:border-b-0 active:translate-y-1 arcade-font text-xs">CHUTE</button>
+        </div>
+    </footer>
+
+    <script>
+        // Configuração do Canvas e Contexto
+        const canvas = document.getElementById('soccer-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Dimensões Virtuais do Campo (Padrão Proporcional)
+        const FIELD_WIDTH = 900;
+        const FIELD_HEIGHT = 560;
+
+        canvas.width = FIELD_WIDTH;
+        canvas.height = FIELD_HEIGHT;
+
+        // Estado do Jogo
+        let gameState = 'MENU'; // MENU, PLAYING, GOAL, GAMEOVER
+        let gameDifficulty = 'normal';
+        let matchTime = 90; // 90 segundos de partida
+        let timerInterval = null;
+
+        // Placar
+        let playerScore = 0;
+        let aiScore = 0;
+
+        // Teclado
+        const keys = {};
+
+        // Controles Touch / Joystick
+        let touchData = { active: false, id: null, startX: 0, startY: 0, currentX: 0, currentY: 0, dx: 0, dy: 0 };
+        let kickPressed = false;
+
+        // Objetos do Jogo
+        const ball = {
+            x: FIELD_WIDTH / 2,
+            y: FIELD_HEIGHT / 2,
+            vx: 0,
+            vy: 0,
+            radius: 10,
+            speedDamping: 0.98,
+            maxSpeed: 12
+        };
+
+        const player = {
+            x: FIELD_WIDTH / 4,
+            y: FIELD_HEIGHT / 2,
+            radius: 16,
+            speed: 4.5,
+            vx: 0,
+            vy: 0,
+            color: '#3b82f6',
+            hasBall: false
+        };
+
+        const ai = {
+            x: (FIELD_WIDTH / 4) * 3,
+            y: FIELD_HEIGHT / 2,
+            radius: 16,
+            speed: 3.2,
+            vx: 0,
+            vy: 0,
+            color: '#f43f5e',
+            hasBall: false
+        };
+
+        // Partículas visuais (Gols / Chutes)
+        let particles = [];
+
+        function createParticles(x, y, color, count = 20) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 6 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 4 + 2,
+                    color: color,
+                    alpha: 1.0,
+                    decay: Math.random() * 0.03 + 0.02
+                });
+            }
+        }
+
+        // Inicialização dos Ouvintes de Eventos do Teclado
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && gameState === 'PLAYING') {
+                tryKick(player);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // Configuração do Joystick Virtual para Dispositivos Móveis
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickStick = document.getElementById('joystick-stick');
+        const btnKick = document.getElementById('btn-kick');
+
+        joystickBase.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchData.active = true;
+            touchData.id = touch.identifier;
+            const rect = joystickBase.getBoundingClientRect();
+            touchData.startX = rect.left + rect.width / 2;
+            touchData.startY = rect.top + rect.height / 2;
+            updateJoystick(touch.clientX, touch.clientY);
+        });
+
+        joystickBase.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!touchData.active) return;
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === touchData.id) {
+                    updateJoystick(e.touches[i].clientX, e.touches[i].clientY);
+                }
+            }
+        });
+
+        joystickBase.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchData.active = false;
+            touchData.dx = 0;
+            touchData.dy = 0;
+            joystickStick.style.transform = `translate(0px, 0px)`;
+        });
+
+        btnKick.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING') {
+                tryKick(player);
+            }
+        });
+
+        function updateJoystick(clientX, clientY) {
+            const maxDist = 35;
+            let dx = clientX - touchData.startX;
+            let dy = clientY - touchData.startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > maxDist) {
+                dx = (dx / dist) * maxDist;
+                dy = (dy / dist) * maxDist;
+            }
+
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            touchData.dx = dx / maxDist;
+            touchData.dy = dy / maxDist;
+        }
+
+        // Funções de Controle de Jogo
+        function startGame(difficulty) {
+            gameDifficulty = difficulty;
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.add('hidden');
+            
+            // Ajustes de IA por dificuldade
+            if (difficulty === 'easy') ai.speed = 2.5;
+            else if (difficulty === 'normal') ai.speed = 3.4;
+            else if (difficulty === 'hard') ai.speed = 4.3;
+
+            playerScore = 0;
+            aiScore = 0;
+            matchTime = 90;
+            updateScoreboard();
+
+            resetPositions();
+            gameState = 'PLAYING';
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (gameState === 'PLAYING') {
+                    matchTime--;
+                    updateScoreboard();
+                    if (matchTime <= 0) {
+                        endMatch();
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateScoreboard() {
+            document.getElementById('player-score').innerText = playerScore;
+            document.getElementById('ai-score').innerText = aiScore;
+            
+            const mins = Math.floor(matchTime / 60);
+            const secs = matchTime % 60;
+            document.getElementById('match-timer').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function resetPositions() {
+            ball.x = FIELD_WIDTH / 2;
+            ball.y = FIELD_HEIGHT / 2;
+            ball.vx = 0;
+            ball.vy = 0;
+
+            player.x = FIELD_WIDTH / 3;
+            player.y = FIELD_HEIGHT / 2;
+            player.vx = 0;
+            player.vy = 0;
+
+            ai.x = (FIELD_WIDTH / 3) * 2;
+            ai.y = FIELD_HEIGHT / 2;
+            ai.vx = 0;
+            ai.vy = 0;
+        }
+
+        function endMatch() {
+            gameState = 'GAMEOVER';
+            clearInterval(timerInterval);
+
+            const modal = document.getElementById('game-over-modal');
+            const title = document.getElementById('game-over-title');
+            const msg = document.getElementById('game-over-msg');
+
+            modal.classList.remove('hidden');
+
+            if (playerScore > aiScore) {
+                title.innerText = 'VITÓRIA!';
+                title.className = 'arcade-font text-2xl md:text-3xl text-emerald-400 mb-4';
+                msg.innerText = `Parabéns! Você venceu a partida por ${playerScore} a ${aiScore}!`;
+            } else if (playerScore < aiScore) {
+                title.innerText = 'DERROTA!';
+                title.className = 'arcade-font text-2xl md:text-3xl text-rose-500 mb-4';
+                msg.innerText = `Não foi dessa vez! Placar final: ${playerScore} x ${aiScore}`;
+            } else {
+                title.innerText = 'EMPATE!';
+                title.className = 'arcade-font text-2xl md:text-3xl text-yellow-400 mb-4';
+                msg.innerText = `Partida equilibrada! Placar final: ${playerScore} x ${aiScore}`;
+            }
+        }
+
+        function returnToMenu() {
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('main-menu').classList.remove('hidden');
+            gameState = 'MENU';
+        }
+
+        function triggerGoal(scorer) {
+            gameState = 'GOAL';
+            if (scorer === 'player') {
+                playerScore++;
+            } else {
+                aiScore++;
+            }
+            updateScoreboard();
+
+            createParticles(ball.x, ball.y, '#fbbf24', 50);
+
+            const banner = document.getElementById('goal-banner');
+            banner.classList.remove('hidden');
+
+            setTimeout(() => {
+                banner.classList.add('hidden');
+                resetPositions();
+                gameState = 'PLAYING';
+            }, 2000);
+        }
+
+        function tryKick(entity) {
+            const dx = ball.x - entity.x;
+            const dy = ball.y - entity.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // Raio de alcance para chutar a bola
+            if (dist < entity.radius + ball.radius + 18) {
+                const angle = Math.atan2(dy, dx);
+                const kickPower = 14;
+                ball.vx = Math.cos(angle) * kickPower;
+                ball.vy = Math.sin(angle) * kickPower;
+                createParticles(ball.x, ball.y, '#ffffff', 8);
+            }
+        }
+
+        // Lógica de Movimento e Atualização Física
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // Movimento do Jogador (Teclado)
+            let pDx = 0;
+            let pDy = 0;
+
+            if (keys['ArrowLeft'] || keys['KeyA']) pDx = -1;
+            if (keys['ArrowRight'] || keys['KeyD']) pDx = 1;
+            if (keys['ArrowUp'] || keys['KeyW']) pDy = -1;
+            if (keys['ArrowDown'] || keys['KeyS']) pDy = 1;
+
+            // Integrar Joystick Mobile se ativo
+            if (touchData.active) {
+                pDx = touchData.dx;
+                pDy = touchData.dy;
+            }
+
+            // Aplicar velocidade ao Jogador (Metade do campo do jogador: lado esquerdo)
+            player.vx = pDx * player.speed;
+            player.vy = pDy * player.speed;
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Limites do Jogador (Metade esquerda do campo + margem central)
+            const goalTop = FIELD_HEIGHT / 2 - 60;
+            const goalBottom = FIELD_HEIGHT / 2 + 60;
+
+            if (player.x - player.radius < 40) player.x = 40 + player.radius;
+            if (player.x + player.radius > FIELD_WIDTH - 40) player.x = FIELD_WIDTH - 40 - player.radius;
+            if (player.y - player.radius < 40) player.y = 40 + player.radius;
+            if (player.y + player.radius > FIELD_HEIGHT - 40) player.y = FIELD_HEIGHT - 40 - player.radius;
+
+            // Inteligência Artificial do Adversário
+            // A IA persegue a bola e tenta bloquear o gol dela
+            let targetX = ball.x;
+            let targetY = ball.y;
+
+            // Se a bola estiver no campo da IA, ela avança agressiva; caso contrário, protege a área
+            if (ball.x < FIELD_WIDTH / 2) {
+                targetX = FIELD_WIDTH * 0.75;
+                targetY = FIELD_HEIGHT / 2;
+            }
+
+            const aiDx = targetX - ai.x;
+            const aiDy = targetY - ai.y;
+            const aiDist = Math.sqrt(aiDx * aiDx + aiDy * aiDy);
+
+            if (aiDist > 2) {
+                ai.vx = (aiDx / aiDist) * ai.speed;
+                ai.vy = (aiDy / aiDist) * ai.speed;
+            } else {
+                ai.vx = 0;
+                ai.vy = 0;
+            }
+
+            ai.x += ai.vx;
+            ai.y += ai.vy;
+
+            // Limites da IA (Metade direita do campo)
+            if (ai.x - ai.radius < FIELD_WIDTH / 2) ai.x = FIELD_WIDTH / 2 + ai.radius;
+            if (ai.x + ai.radius > FIELD_WIDTH - 40) ai.x = FIELD_WIDTH - 40 - ai.radius;
+            if (ai.y - ai.radius < 40) ai.y = 40 + ai.radius;
+            if (ai.y + ai.radius > FIELD_HEIGHT - 40) ai.y = FIELD_HEIGHT - 40 - ai.radius;
+
+            // IA chuta a bola se estiver perto dela
+            const distAiBall = Math.sqrt((ball.x - ai.x) ** 2 + (ball.y - ai.y) ** 2);
+            if (distAiBall < ai.radius + ball.radius + 12) {
+                // Direção para o gol do jogador (esquerda)
+                const goalTargetX = 40;
+                const goalTargetY = FIELD_HEIGHT / 2 + (Math.random() * 80 - 40);
+                const angleToGoal = Math.atan2(goalTargetY - ball.y, goalTargetX - ball.x);
+                const aiPower = gameDifficulty === 'hard' ? 11 : (gameDifficulty === 'normal' ? 9 : 7);
+                ball.vx = Math.cos(angleToGoal) * aiPower;
+                ball.vy = Math.sin(angleToGoal) * aiPower;
+                createParticles(ball.x, ball.y, '#f43f5e', 6);
+            }
+
+            // Física da Bola
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            ball.vx *= ball.speedDamping;
+            ball.vy *= ball.speedDamping;
+
+            // Colisão da Bola com as Paredes Superiores e Inferiores
+            if (ball.y - ball.radius < 40) {
+                ball.y = 40 + ball.radius;
+                ball.vy *= -0.8;
+            }
+            if (ball.y + ball.radius > FIELD_HEIGHT - 40) {
+                ball.y = FIELD_HEIGHT - 40 - ball.radius;
+                ball.vy *= -0.8;
+            }
+
+            // Checagem de Gols nas Laterais (Largura das traves: 120px no centro Y)
+            const gTop = FIELD_HEIGHT / 2 - 65;
+            const gBottom = FIELD_HEIGHT / 2 + 65;
+
+            // Trave Esquerda (Gol do Jogador / Ponto para o Rival)
+            if (ball.x - ball.radius <= 40) {
+                if (ball.y >= gTop && ball.y <= gBottom) {
+                    triggerGoal('ai');
+                    return;
+                } else {
+                    ball.x = 40 + ball.radius;
+                    ball.vx *= -0.8;
+                }
+            }
+
+            // Trave Direita (Gol do Rival / Ponto para o Jogador)
+            if (ball.x + ball.radius >= FIELD_WIDTH - 40) {
+                if (ball.y >= gTop && ball.y <= gBottom) {
+                    triggerGoal('player');
+                    return;
+                } else {
+                    ball.x = FIELD_WIDTH - 40 - ball.radius;
+                    ball.vx *= -0.8;
+                }
+            }
+
+            // Colisão Bola com Jogador
+            handleEntityBallCollision(player);
+            // Colisão Bola com IA
+            handleEntityBallCollision(ai);
+
+            // Atualizar Partículas
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function handleEntityBallCollision(entity) {
+            const dx = ball.x - entity.x;
+            const dy = ball.y - entity.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = entity.radius + ball.radius;
+
+            if (dist < minDist) {
+                const angle = Math.atan2(dy, dx);
+                const overlap = minDist - dist;
+                
+                // Afastar entidades para evitar sobreposição
+                ball.x += Math.cos(angle) * overlap;
+                ball.y += Math.sin(angle) * overlap;
+
+                // Transferir momentum
+                const speed = Math.sqrt(entity.vx * entity.vx + entity.vy * entity.vy) + 4;
+                ball.vx = Math.cos(angle) * Math.max(speed, 5);
+                ball.vy = Math.sin(angle) * Math.max(speed, 5);
+            }
+        }
+
+        // Funções de Desenho e Renderização Gráfica (Estilo Retro/Moderno)
+        function draw() {
+            ctx.clearRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+
+            // 1. Gramado e Textura do Campo
+            ctx.fillStyle = '#047857';
+            ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+
+            // Listras do Gramado
+            ctx.fillStyle = '#059669';
+            const stripeWidth = 60;
+            for (let x = 40; x < FIELD_WIDTH - 40; x += stripeWidth * 2) {
+                ctx.fillRect(x, 40, stripeWidth, FIELD_HEIGHT - 80);
+            }
+
+            // 2. Limites do Campo e Linhas (Estilo Néon Arcade Clean)
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(40, 40, FIELD_WIDTH - 80, FIELD_HEIGHT - 80);
+
+            // Linha do Meio do Campo
+            ctx.beginPath();
+            ctx.moveTo(FIELD_WIDTH / 2, 40);
+            ctx.lineTo(FIELD_WIDTH / 2, FIELD_HEIGHT - 40);
+            ctx.stroke();
+
+            // Círculo Central
+            ctx.beginPath();
+            ctx.arc(FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 70, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Ponto Central
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3. Áreas de Gol e Traves
+            const goalWidth = 16;
+            const goalHeight = 130;
+            const goalY = FIELD_HEIGHT / 2 - goalHeight / 2;
+
+            // Trave Esquerda
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(40 - goalWidth, goalY, goalWidth, goalHeight);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(40 - goalWidth, goalY, goalWidth, goalHeight);
+
+            // Trave Direita
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(FIELD_WIDTH - 40, goalY, goalWidth, goalHeight);
+            ctx.strokeRect(FIELD_WIDTH - 40, goalY, goalWidth, goalHeight);
+
+            // 4. Desenhar Partículas
+            for (let p of particles) {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 5. Desenhar Jogador
+            drawEntity(player, 'P1');
+
+            // 6. Desenhar Adversário (IA)
+            drawEntity(ai, 'AI');
+
+            // 7. Desenhar Bola de Futebol com Sombra e Efeito de Rotação Visual
+            ctx.save();
+            // Sombra da bola
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(ball.x + 3, ball.y + 6, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Corpo da bola
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Detalhe pentágono central da bola
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawEntity(entity, label) {
+            ctx.save();
+            // Sombra do Jogador
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.beginPath();
+            ctx.arc(entity.x + 4, entity.y + 8, entity.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Corpo do Jogador (Círculo Principal com gradiente/cor)
+            ctx.fillStyle = entity.color;
+            ctx.beginPath();
+            ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Detalhe interno (Faixa / Colete)
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(entity.x, entity.y, entity.radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Rótulo identificador (P1 / AI)
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, entity.x, entity.y - entity.radius - 6);
+
+            ctx.restore();
+        }
+
+        // Loop Principal do Jogo
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Inicializar animação
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
